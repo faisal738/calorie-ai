@@ -40,7 +40,7 @@ export default function ProfilePage() {
 
   async function loadProfile() {
     try {
-      const { data } = await supabase.from("profiles").select("*").eq("id", USER_ID).single();
+      const { data } = await supabase.from("profiles").select("*").eq("id", USER_ID).maybeSingle();
       if (data) {
         setProfile(data as Profile);
         setTargets(

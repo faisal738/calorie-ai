@@ -44,7 +44,7 @@ export default function MealsPage() {
         .select("*")
         .eq("user_id", USER_ID)
         .eq("date", today)
-        .single();
+        .maybeSingle();
 
       if (targetData) setTargets(targetData as DailyTarget);
 
@@ -83,7 +83,7 @@ export default function MealsPage() {
           cuisine: meal.cuisine,
         })
         .select()
-        .single();
+        .maybeSingle();
 
       if (newLog) {
         setFoodLogs((prev) => [...prev, newLog as FoodLog]);

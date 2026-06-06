@@ -61,7 +61,7 @@ export default function FoodLogPage() {
           ...data,
         })
         .select()
-        .single();
+        .maybeSingle();
 
       if (newLog) {
         setFoodLogs((prev) => [...prev, newLog as FoodLog]);

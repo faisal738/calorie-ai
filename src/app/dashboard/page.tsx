@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { calculateAllTargets } from "@/lib/calculations";
@@ -21,6 +22,7 @@ export default function DashboardPage() {
   const [foodLogs, setFoodLogs] = useState<FoodLog[]>([]);
   const [waterLogs, setWaterLogs] = useState<WaterLog[]>([]);
   const [loading, setLoading] = useState(true);
+  const router = useRouter();
   const supabase = createClient();
 
   useEffect(() => {
@@ -36,9 +38,13 @@ export default function DashboardPage() {
         .from("profiles")
         .select("*")
         .eq("id", USER_ID)
-        .single();
+        .maybeSingle();
 
-      if (!profileData) return;
+      if (!profileData) {
+        // No profile yet — redirect to onboarding
+        router.replace("/onboarding");
+        return;
+      }
 
       setProfile(profileData as Profile);
 
@@ -61,7 +67,7 @@ export default function DashboardPage() {
         .select("*")
         .eq("user_id", USER_ID)
         .eq("date", today)
-        .single();
+        .maybeSingle();
 
       if (targetData) {
         setDailyTarget(targetData as DailyTarget);
