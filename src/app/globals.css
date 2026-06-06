@@ -1,26 +1,98 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Brand & Accent */
+  --color-brand-green: #00d4a4;
+  --color-brand-green-deep: #00b58e;
+  --color-brand-green-soft: #e6faf4;
+  --color-brand-tag: #3772cf;
+  --color-brand-annotate: #4caf50;
+  --color-brand-warn: #f59e0b;
+  --color-brand-error: #ef4444;
+  --color-testimonial-orange: #ff6b4a;
+
+  /* Surface */
+  --color-canvas: #ffffff;
+  --color-canvas-dark: #0a0a0a;
+  --color-surface: #f7f7f7;
+  --color-surface-soft: #fafafa;
+  --color-surface-code: #1e1e1e;
+  --color-hairline: #e5e5e5;
+  --color-hairline-soft: #f0f0f0;
+
+  /* Hero Atmospheric */
+  --color-hero-sky-from: #c8e6ff;
+  --color-hero-sky-to: #fff8ef;
+  --color-hero-dark-from: #0d3d3d;
+  --color-hero-dark-to: #00d4a4;
+
+  /* Text */
+  --color-ink: #171717;
+  --color-charcoal: #333333;
+  --color-slate: #666666;
+  --color-steel: #888888;
+  --color-stone: #aaaaaa;
+  --color-muted: #bbbbbb;
+  --color-on-dark: #ffffff;
+  --color-on-dark-muted: rgba(255, 255, 255, 0.6);
+
+  /* Semantic */
+  --color-primary: #000000;
+  --color-on-primary: #ffffff;
+
+  /* Spacing */
+  --spacing-xxs: 4px;
+  --spacing-xs: 8px;
+  --spacing-sm: 12px;
+  --spacing-md: 16px;
+  --spacing-lg: 20px;
+  --spacing-xl: 24px;
+  --spacing-xxl: 32px;
+  --spacing-xxxl: 40px;
+  --spacing-section-sm: 48px;
+  --spacing-section: 64px;
+  --spacing-section-lg: 96px;
+  --spacing-hero: 120px;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --color-background: var(--color-canvas);
+  --color-foreground: var(--color-ink);
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Custom utility classes */
+.brand-gradient-sky {
+  background: linear-gradient(180deg, var(--color-hero-sky-from) 0%, var(--color-hero-sky-to) 100%);
+}
+
+.brand-gradient-dark {
+  background: linear-gradient(135deg, var(--color-hero-dark-from) 0%, var(--color-hero-dark-to) 100%);
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-surface);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-hairline);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-muted);
 }
