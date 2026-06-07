@@ -14,10 +14,11 @@ export async function POST(req: NextRequest) {
 
   // ---- SUGGEST MODE: return multiple matching foods with nutrition ----
   if (mode === "suggest") {
-    const prompt = `You are a nutrition expert with a comprehensive food database. The user is searching for: "${foodName}".
+    const prompt = `You are a certified nutritionist with access to verified nutritional data from authoritative sources including USDA National Nutrient Database, ICMR-NIN (Indian Council of Medical Research), McCance & Widdowson's, and IFCT (Indian Food Composition Tables).
 
-Suggest up to 6 specific food items that match this search. Include common Indian, Western, Asian, and Mediterranean foods.
-Each item must have accurate nutritional values per standard serving.
+The user is searching for: "${foodName}".
+
+Suggest up to 6 specific food items that closely match this search. Include relevant Indian, Western, Asian, and Mediterranean foods based on the query.
 
 Respond ONLY with a valid JSON array. No markdown, no explanation, no extra text:
 [
@@ -32,11 +33,14 @@ Respond ONLY with a valid JSON array. No markdown, no explanation, no extra text
   }
 ]
 
-Rules:
+STRICT RULES:
+- Use ONLY verified nutritional values from the databases mentioned above — do NOT estimate or guess
 - Each food name must be specific (e.g. "Chicken Biryani" not just "Chicken")
-- Nutritional values must be per serving_size, NOT per 100g
-- Be accurate and realistic based on standard nutritional databases
-- Include variety — don't suggest 6 variations of the same dish`;
+- Nutritional values must be per the stated serving_size, NOT per 100g
+- Include the gram weight in the serving_size for transparency (e.g. "1 bowl (200g)")
+- For Indian foods, prefer ICMR-NIN / IFCT values. For Western foods, prefer USDA values
+- Include variety — don't suggest 6 variations of the same dish
+- If unsure about a food, do NOT include it — only suggest foods with well-documented nutritional data`;
 
     try {
       const response = await fetch(
@@ -93,7 +97,9 @@ Rules:
   }
 
   // ---- ANALYZE MODE (default): return nutrition for a specific food ----
-  const prompt = `You are a nutrition expert. Analyze the nutritional content for: "${quantity || 1} ${unit || "serving"} of ${foodName}".
+  const prompt = `You are a certified nutritionist with access to verified nutritional data from authoritative sources including USDA National Nutrient Database, ICMR-NIN (Indian Council of Medical Research), McCance & Widdowson's, and IFCT (Indian Food Composition Tables).
+
+Analyze the nutritional content for: "${quantity || 1} ${unit || "serving"} of ${foodName}".
 
 Respond ONLY with a valid JSON object. No markdown, no explanation, no extra text:
 {
@@ -104,7 +110,11 @@ Respond ONLY with a valid JSON object. No markdown, no explanation, no extra tex
   "fiber": <number with 1 decimal>
 }
 
-Base values on standard nutritional databases. Be accurate and realistic.`;
+STRICT RULES:
+- Use ONLY verified nutritional values from the databases mentioned above — do NOT estimate or guess
+- For Indian foods, prefer ICMR-NIN / IFCT values. For Western foods, prefer USDA values
+- Values must reflect the specified quantity (${quantity || 1} ${unit || "serving(s)"})
+- Be precise and accurate — these values will be used for calorie tracking`;
 
   try {
     const response = await fetch(
