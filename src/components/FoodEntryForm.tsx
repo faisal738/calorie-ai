@@ -4,6 +4,16 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import type { MealType, Cuisine, Meal } from "@/lib/types";
 import { searchMeals } from "@/lib/meal-matcher";
 
+interface AISuggestion {
+  name: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  fiber: number;
+  serving_size: string;
+}
+
 interface FoodEntryFormProps {
   onSubmit: (data: {
     food_name: string;
@@ -33,6 +43,7 @@ export default function FoodEntryForm({ onSubmit, loading }: FoodEntryFormProps)
   const [quantity, setQuantity] = useState(1);
   const [unit, setUnit] = useState("serving");
   const [suggestions, setSuggestions] = useState<Meal[]>([]);
+  const [aiSuggestions, setAiSuggestions] = useState<AISuggestion[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const [fillSource, setFillSource] = useState<FillSource>(null);
   const [analyzing, setAnalyzing] = useState(false);
@@ -42,6 +53,8 @@ export default function FoodEntryForm({ onSubmit, loading }: FoodEntryFormProps)
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
   const lastAnalyzedRef = useRef<string>("");
+  // Base nutritional values per 1 unit — used to scale with quantity
+  const baseValuesRef = useRef({ calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 });
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -82,11 +95,19 @@ export default function FoodEntryForm({ onSubmit, loading }: FoodEntryFormProps)
       }
 
       const data = await res.json();
-      setCalories(data.calories);
-      setProtein(data.protein);
-      setCarbs(data.carbs);
-      setFat(data.fat);
-      setFiber(data.fiber);
+      // Store base values (per 1 unit) for quantity scaling
+      baseValuesRef.current = {
+        calories: data.calories,
+        protein: data.protein,
+        carbs: data.carbs,
+        fat: data.fat,
+        fiber: data.fiber,
+      };
+      setCalories(Math.round(data.calories * quantity));
+      setProtein(parseFloat((data.protein * quantity).toFixed(1)));
+      setCarbs(parseFloat((data.carbs * quantity).toFixed(1)));
+      setFat(parseFloat((data.fat * quantity).toFixed(1)));
+      setFiber(parseFloat((data.fiber * quantity).toFixed(1)));
       setFillSource("ai");
     } catch {
       setError("AI analysis failed. Please enter values manually.");
@@ -96,10 +117,33 @@ export default function FoodEntryForm({ onSubmit, loading }: FoodEntryFormProps)
     }
   }, [quantity, unit]);
 
+  // Fetch AI-powered food suggestions
+  const fetchAISuggestions = useCallback(async (query: string) => {
+    if (!query || query.trim().length < 2) return;
+    setAnalyzing(true);
+    try {
+      const res = await fetch("/api/analyze-food", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ foodName: query, mode: "suggest" }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setAiSuggestions(data.suggestions || []);
+        setShowDropdown(true);
+      }
+    } catch {
+      // silently fail — user can still type manually
+    } finally {
+      setAnalyzing(false);
+    }
+  }, []);
+
   function handleFoodNameChange(value: string) {
     setFoodName(value);
     setFillSource(null);
     setError("");
+    setAiSuggestions([]);
 
     // Clear any pending debounce
     if (debounceRef.current) {
@@ -110,13 +154,14 @@ export default function FoodEntryForm({ onSubmit, loading }: FoodEntryFormProps)
     if (value.trim().length >= 2) {
       const results = searchMeals(value);
       setSuggestions(results);
-      setShowDropdown(results.length > 0);
 
-      // If no database match, auto-trigger AI after 1.5s of no typing
-      if (results.length === 0) {
+      if (results.length > 0) {
+        setShowDropdown(true);
+      } else {
+        // No local match — fetch AI suggestions after 1s debounce
         debounceRef.current = setTimeout(() => {
-          analyzeWithAI(value);
-        }, 1500);
+          fetchAISuggestions(value);
+        }, 1000);
       }
     } else {
       setSuggestions([]);
@@ -126,16 +171,62 @@ export default function FoodEntryForm({ onSubmit, loading }: FoodEntryFormProps)
 
   function handleSelectMeal(meal: Meal) {
     setFoodName(meal.name);
-    setCalories(meal.calories);
-    setProtein(meal.protein);
-    setCarbs(meal.carbs);
-    setFat(meal.fat);
-    setFiber(meal.fiber);
+    // Store base values (per 1 serving) for quantity scaling
+    baseValuesRef.current = {
+      calories: meal.calories,
+      protein: meal.protein,
+      carbs: meal.carbs,
+      fat: meal.fat,
+      fiber: meal.fiber,
+    };
+    setCalories(Math.round(meal.calories * quantity));
+    setProtein(parseFloat((meal.protein * quantity).toFixed(1)));
+    setCarbs(parseFloat((meal.carbs * quantity).toFixed(1)));
+    setFat(parseFloat((meal.fat * quantity).toFixed(1)));
+    setFiber(parseFloat((meal.fiber * quantity).toFixed(1)));
     setUnit(meal.serving_size);
     setFillSource("database");
     setShowDropdown(false);
+    setAiSuggestions([]);
     lastAnalyzedRef.current = meal.name.toLowerCase();
     inputRef.current?.focus();
+  }
+
+  function handleSelectAISuggestion(s: AISuggestion) {
+    setFoodName(s.name);
+    // Store base values (per 1 serving) for quantity scaling
+    baseValuesRef.current = {
+      calories: s.calories,
+      protein: s.protein,
+      carbs: s.carbs,
+      fat: s.fat,
+      fiber: s.fiber,
+    };
+    setCalories(Math.round(s.calories * quantity));
+    setProtein(parseFloat((s.protein * quantity).toFixed(1)));
+    setCarbs(parseFloat((s.carbs * quantity).toFixed(1)));
+    setFat(parseFloat((s.fat * quantity).toFixed(1)));
+    setFiber(parseFloat((s.fiber * quantity).toFixed(1)));
+    setUnit(s.serving_size);
+    setFillSource("ai");
+    setShowDropdown(false);
+    setAiSuggestions([]);
+    lastAnalyzedRef.current = s.name.toLowerCase();
+    inputRef.current?.focus();
+  }
+
+  function handleQuantityChange(newQuantity: number) {
+    const q = newQuantity || 1;
+    setQuantity(q);
+    // Scale macros proportionally if we have base values
+    const base = baseValuesRef.current;
+    if (base.calories > 0 || base.protein > 0 || base.carbs > 0 || base.fat > 0) {
+      setCalories(Math.round(base.calories * q));
+      setProtein(parseFloat((base.protein * q).toFixed(1)));
+      setCarbs(parseFloat((base.carbs * q).toFixed(1)));
+      setFat(parseFloat((base.fat * q).toFixed(1)));
+      setFiber(parseFloat((base.fiber * q).toFixed(1)));
+    }
   }
 
   function handleAnalyzeClick() {
@@ -167,7 +258,9 @@ export default function FoodEntryForm({ onSubmit, loading }: FoodEntryFormProps)
     setUnit("serving");
     setFillSource(null);
     setError("");
+    setAiSuggestions([]);
     lastAnalyzedRef.current = "";
+    baseValuesRef.current = { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 };
   };
 
   const mealTypes: { value: MealType; label: string }[] = [
@@ -193,7 +286,7 @@ export default function FoodEntryForm({ onSubmit, loading }: FoodEntryFormProps)
             value={foodName}
             onChange={(e) => handleFoodNameChange(e.target.value)}
             onFocus={() => {
-              if (foodName.trim().length >= 2 && suggestions.length > 0) setShowDropdown(true);
+              if (foodName.trim().length >= 2 && (suggestions.length > 0 || aiSuggestions.length > 0)) setShowDropdown(true);
             }}
             required
             placeholder="e.g. Grilled Chicken Breast"
@@ -226,27 +319,63 @@ export default function FoodEntryForm({ onSubmit, loading }: FoodEntryFormProps)
         </div>
 
         {/* Autocomplete Dropdown */}
-        {showDropdown && (
-          <div className="absolute z-50 w-full mt-1 bg-[var(--color-canvas)] border border-[var(--color-hairline)] rounded-lg shadow-lg max-h-64 overflow-y-auto">
-            {suggestions.map((meal) => (
-              <button
-                key={meal.id}
-                type="button"
-                onClick={() => handleSelectMeal(meal)}
-                className="w-full text-left px-3 py-2.5 hover:bg-[var(--color-surface-soft)] transition-colors border-b border-[var(--color-hairline)] last:border-b-0"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-sm font-medium text-[var(--color-ink)]">{meal.name}</span>
-                  <span className="text-xs text-[var(--color-steel)] whitespace-nowrap">{meal.calories} kcal</span>
+        {showDropdown && (suggestions.length > 0 || aiSuggestions.length > 0) && (
+          <div className="absolute z-50 w-full mt-1 bg-[var(--color-canvas)] border border-[var(--color-hairline)] rounded-lg shadow-lg max-h-72 overflow-y-auto">
+            {/* Local database results */}
+            {suggestions.length > 0 && (
+              <>
+                <div className="px-3 py-1.5 bg-[var(--color-surface-soft)] border-b border-[var(--color-hairline)]">
+                  <span className="text-xs font-medium text-[var(--color-steel)] uppercase tracking-wide">From Database</span>
                 </div>
-                <div className="flex gap-3 mt-0.5 text-xs text-[var(--color-steel)]">
-                  <span>P: {meal.protein}g</span>
-                  <span>C: {meal.carbs}g</span>
-                  <span>F: {meal.fat}g</span>
-                  <span className="capitalize">{meal.cuisine}</span>
+                {suggestions.map((meal) => (
+                  <button
+                    key={meal.id}
+                    type="button"
+                    onClick={() => handleSelectMeal(meal)}
+                    className="w-full text-left px-3 py-2.5 hover:bg-[var(--color-surface-soft)] transition-colors border-b border-[var(--color-hairline)] last:border-b-0"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-medium text-[var(--color-ink)]">{meal.name}</span>
+                      <span className="text-xs text-[var(--color-steel)] whitespace-nowrap">{meal.calories} kcal</span>
+                    </div>
+                    <div className="flex gap-3 mt-0.5 text-xs text-[var(--color-steel)]">
+                      <span>P: {meal.protein}g</span>
+                      <span>C: {meal.carbs}g</span>
+                      <span>F: {meal.fat}g</span>
+                      <span className="capitalize">{meal.cuisine}</span>
+                    </div>
+                  </button>
+                ))}
+              </>
+            )}
+            {/* AI suggestions */}
+            {aiSuggestions.length > 0 && (
+              <>
+                <div className="px-3 py-1.5 bg-[var(--color-surface-soft)] border-b border-[var(--color-hairline)] flex items-center gap-1.5">
+                  <svg className="w-3 h-3 text-[var(--color-brand-green)]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>
+                  <span className="text-xs font-medium text-[var(--color-steel)] uppercase tracking-wide">AI Suggestions</span>
                 </div>
-              </button>
-            ))}
+                {aiSuggestions.map((s, i) => (
+                  <button
+                    key={`ai-${i}`}
+                    type="button"
+                    onClick={() => handleSelectAISuggestion(s)}
+                    className="w-full text-left px-3 py-2.5 hover:bg-[var(--color-surface-soft)] transition-colors border-b border-[var(--color-hairline)] last:border-b-0"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-medium text-[var(--color-ink)]">{s.name}</span>
+                      <span className="text-xs text-[var(--color-steel)] whitespace-nowrap">{s.calories} kcal</span>
+                    </div>
+                    <div className="flex gap-3 mt-0.5 text-xs text-[var(--color-steel)]">
+                      <span>P: {s.protein}g</span>
+                      <span>C: {s.carbs}g</span>
+                      <span>F: {s.fat}g</span>
+                      <span>{s.serving_size}</span>
+                    </div>
+                  </button>
+                ))}
+              </>
+            )}
           </div>
         )}
 
@@ -371,7 +500,7 @@ export default function FoodEntryForm({ onSubmit, loading }: FoodEntryFormProps)
             <input
               type="number"
               value={quantity || ""}
-              onChange={(e) => setQuantity(parseFloat(e.target.value) || 1)}
+              onChange={(e) => handleQuantityChange(parseFloat(e.target.value) || 1)}
               step="0.5"
               min="0.5"
               className="w-20 h-10 px-3 border border-[var(--color-hairline)] rounded-lg text-sm bg-[var(--color-canvas)] text-[var(--color-ink)] font-[family-name:var(--font-geist-mono)] focus:outline-none focus:border-[var(--color-brand-green)] focus:ring-1 focus:ring-[var(--color-brand-green)]"
