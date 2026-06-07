@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import type { MealType, Cuisine } from "@/lib/types";
+import { useState, useRef, useEffect } from "react";
+import type { MealType, Cuisine, Meal } from "@/lib/types";
+import { searchMeals } from "@/lib/meal-matcher";
 
 interface FoodEntryFormProps {
   onSubmit: (data: {
@@ -29,6 +30,48 @@ export default function FoodEntryForm({ onSubmit, loading }: FoodEntryFormProps)
   const [fiber, setFiber] = useState(0);
   const [quantity, setQuantity] = useState(1);
   const [unit, setUnit] = useState("serving");
+  const [suggestions, setSuggestions] = useState<Meal[]>([]);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [autoFilled, setAutoFilled] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setShowDropdown(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  function handleFoodNameChange(value: string) {
+    setFoodName(value);
+    setAutoFilled(false);
+    if (value.trim().length >= 2) {
+      const results = searchMeals(value);
+      setSuggestions(results);
+      setShowDropdown(results.length > 0);
+    } else {
+      setSuggestions([]);
+      setShowDropdown(false);
+    }
+  }
+
+  function handleSelectMeal(meal: Meal) {
+    setFoodName(meal.name);
+    setCalories(meal.calories);
+    setProtein(meal.protein);
+    setCarbs(meal.carbs);
+    setFat(meal.fat);
+    setFiber(meal.fiber);
+    setUnit(meal.serving_size);
+    setAutoFilled(true);
+    setShowDropdown(false);
+    inputRef.current?.focus();
+  }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,6 +95,7 @@ export default function FoodEntryForm({ onSubmit, loading }: FoodEntryFormProps)
     setFiber(0);
     setQuantity(1);
     setUnit("serving");
+    setAutoFilled(false);
   };
 
   const mealTypes: { value: MealType; label: string }[] = [
@@ -63,19 +107,53 @@ export default function FoodEntryForm({ onSubmit, loading }: FoodEntryFormProps)
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
-      {/* Food Name */}
-      <div>
+      {/* Food Name with Autocomplete */}
+      <div className="relative" ref={dropdownRef}>
         <label className="block text-sm font-medium text-[var(--color-ink)] mb-1.5">
           Food Name
         </label>
         <input
+          ref={inputRef}
           type="text"
           value={foodName}
-          onChange={(e) => setFoodName(e.target.value)}
+          onChange={(e) => handleFoodNameChange(e.target.value)}
+          onFocus={() => {
+            if (foodName.trim().length >= 2 && suggestions.length > 0) setShowDropdown(true);
+          }}
           required
           placeholder="e.g. Grilled Chicken Breast"
+          autoComplete="off"
           className="w-full h-10 px-3 border border-[var(--color-hairline)] rounded-lg text-sm bg-[var(--color-canvas)] text-[var(--color-ink)] focus:outline-none focus:border-[var(--color-brand-green)] focus:ring-1 focus:ring-[var(--color-brand-green)]"
         />
+        {/* Autocomplete Dropdown */}
+        {showDropdown && (
+          <div className="absolute z-50 w-full mt-1 bg-[var(--color-canvas)] border border-[var(--color-hairline)] rounded-lg shadow-lg max-h-64 overflow-y-auto">
+            {suggestions.map((meal) => (
+              <button
+                key={meal.id}
+                type="button"
+                onClick={() => handleSelectMeal(meal)}
+                className="w-full text-left px-3 py-2.5 hover:bg-[var(--color-surface-soft)] transition-colors border-b border-[var(--color-hairline)] last:border-b-0"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-sm font-medium text-[var(--color-ink)]">{meal.name}</span>
+                  <span className="text-xs text-[var(--color-steel)] whitespace-nowrap">{meal.calories} kcal</span>
+                </div>
+                <div className="flex gap-3 mt-0.5 text-xs text-[var(--color-steel)]">
+                  <span>P: {meal.protein}g</span>
+                  <span>C: {meal.carbs}g</span>
+                  <span>F: {meal.fat}g</span>
+                  <span className="capitalize">{meal.cuisine}</span>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+        {autoFilled && (
+          <p className="text-xs text-[var(--color-brand-green)] mt-1">
+            Auto-filled from database — edit values if needed
+          </p>
+        )}
       </div>
 
       {/* Meal Type */}
@@ -102,6 +180,12 @@ export default function FoodEntryForm({ onSubmit, loading }: FoodEntryFormProps)
       </div>
 
       {/* Macros Grid */}
+      {autoFilled && (
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[var(--color-surface-soft)] border border-[var(--color-hairline)]">
+          <svg className="w-4 h-4 text-[var(--color-brand-green)]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+          <span className="text-xs text-[var(--color-ink)]">Nutrition auto-filled from database</span>
+        </div>
+      )}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
         <div>
           <label className="block text-sm font-medium text-[var(--color-ink)] mb-1.5">Calories</label>

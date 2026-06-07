@@ -66,6 +66,46 @@ export function getCuisines(): { value: Cuisine; label: string; emoji: string }[
 }
 
 /**
+ * Search meals by name (case-insensitive, partial match).
+ * Returns matches sorted by relevance (exact first, then by how early the match appears).
+ */
+export function searchMeals(query: string, limit = 8): Meal[] {
+  if (!query.trim()) return [];
+  const q = query.toLowerCase().trim();
+
+  const scored = MEALS.map((meal) => {
+    const name = meal.name.toLowerCase();
+    let score = 0;
+
+    if (name === q) {
+      score = 1000; // exact match
+    } else if (name.startsWith(q)) {
+      score = 500;
+    } else if (name.includes(q)) {
+      score = 200 + (10 - name.indexOf(q)); // earlier match = higher score
+    } else {
+      // word-level partial match
+      const words = name.split(/\s+/);
+      for (const word of words) {
+        if (word.startsWith(q)) {
+          score = Math.max(score, 100);
+        } else if (word.includes(q)) {
+          score = Math.max(score, 50);
+        }
+      }
+    }
+
+    return { meal, score };
+  })
+    .filter((s) => s.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit)
+    .map((s) => s.meal);
+
+  return scored;
+}
+
+/**
  * Get meal type options
  */
 export function getMealTypes(): { value: MealType; label: string }[] {
